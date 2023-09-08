@@ -41,8 +41,10 @@ pub fn data_size_byte(word_length: i32) -> i32 {
 }
 
 // PLC Status
+#[derive(Debug)]
 pub enum CpuStatus {
     Unknown = 0,
+    StopByUser = 3,
     Stop = 4,
     Run = 8,
 }
@@ -51,6 +53,7 @@ impl CpuStatus {
     pub(crate) fn from_u8(value: u8) -> Result<CpuStatus, Error> {
         match value {
             0 => Ok(CpuStatus::Unknown),
+            3 => Ok(CpuStatus::StopByUser),
             4 => Ok(CpuStatus::Stop),
             8 => Ok(CpuStatus::Run),
             _ => Err(Error::InvalidCpuStatus(value)),
