@@ -808,7 +808,7 @@ impl<T: Transport> Client<T> {
             });
         }
 
-        if response[17] != start_cmp {
+        if response[19] != start_cmp {
             return Err(Error::Response { code: start });
         }
         if response[18] == already_cmp {
