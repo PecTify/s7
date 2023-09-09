@@ -11,7 +11,7 @@ use super::transport::{self, Transport as PackTrait};
 use crate::transport::Connection;
 use byteorder::{BigEndian, ByteOrder};
 use std::io::{Read, Write};
-use std::net::{IpAddr, SocketAddrV4};
+use std::net::IpAddr;
 use std::net::TcpStream;
 use std::sync::Mutex;
 use std::time::Duration;
