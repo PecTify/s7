@@ -25,7 +25,7 @@ pub const WL_CHAR: i32 = 0x03;
 pub const WL_WORD: i32 = 0x04; //Word (16 bit)
 pub const WL_INT: i32 = 0x05;
 pub const WL_DWORD: i32 = 0x06; //Double Word (32 bit)
-pub const WL_DINT: i32 = 0x07;
+pub const WL_DINT: i32 = 0x07; //Double Int (32 bit -2147483648 to +2147483647)
 pub const WL_REAL: i32 = 0x08; //Real (32 bit float)
 pub const WL_COUNTER: i32 = 0x1C; //Counter (16 bit)
 pub const WL_TIMER: i32 = 0x1D; //Timer (16 bit)
@@ -56,6 +56,58 @@ impl CpuStatus {
             3 => Ok(CpuStatus::StopByUser),
             4 => Ok(CpuStatus::Stop),
             8 => Ok(CpuStatus::Run),
+            _ => Err(Error::InvalidCpuStatus(value)),
+        }
+    }
+}
+
+
+
+#[derive(Debug, Clone)]
+pub enum SubBlockType {
+    OB = 0x08,
+    DB = 0x0A,
+    SDB = 0x0B,
+    FC = 0x0C,
+    SFC = 0x0D,
+    FB = 0x0E,
+    SFB = 0x0F,
+}
+
+impl SubBlockType {
+    pub(crate) fn from_u8(value: u8) -> Result<Self, Error> {
+        match value {
+            0x08 => Ok(SubBlockType::OB),
+            0x0A => Ok(SubBlockType::DB),
+            0x0B => Ok(SubBlockType::SDB),
+            0x0C => Ok(SubBlockType::FC),
+            0x0D => Ok(SubBlockType::SFC),
+            0x0E => Ok(SubBlockType::FB),
+            0x0F => Ok(SubBlockType::SFB),
+            _ => Err(Error::InvalidBlockType(value)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BlockLang {
+    AWL = 0x01,
+    KOP = 0x02,
+    FUP = 0x03,
+    SCL = 0x04,
+    DB = 0x05,
+    GRAPH = 0x06,
+}
+
+impl BlockLang {
+    pub(crate) fn from_u8(value: u8) -> Result<Self, Error> {
+        match value {
+            0x01 => Ok(BlockLang::AWL),
+            0x02 => Ok(BlockLang::KOP),
+            0x03 => Ok(BlockLang::FUP),
+            0x04 => Ok(BlockLang::SCL),
+            0x05 => Ok(BlockLang::DB),
+            0x06 => Ok(BlockLang::GRAPH),
             _ => Err(Error::InvalidCpuStatus(value)),
         }
     }

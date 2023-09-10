@@ -4,8 +4,11 @@
 
 //! Parses bytes from `Area::DataBausteine` to types for easier manipulation
 
+use std::string::FromUtf8Error;
+
 use super::error::Error;
 use byteorder::{BigEndian, ByteOrder};
+use chrono::{NaiveDate, Duration, NaiveDateTime};
 
 /// Fields collection type alias for convenience
 /// # Examples
@@ -262,6 +265,88 @@ impl Field for Word {
 }
 
 
+/// PLC dint field
+#[derive(Debug)]
+pub struct DInt {
+    data_block: i32,
+    /// offset example 8.1
+    /// left side is index within the block
+    /// right side is the bit position only used for bool, zero for all other types
+    offset: f32,
+    value: i32, //(S7 DInt) -2147483648..2147483647
+}
+
+impl DInt {
+    pub fn new(data_block: i32, offset: f32, mut bytes: Vec<u8>) -> Result<DInt, Error> {
+        let len = bytes.len();
+        if bytes.len() != DInt::size() as usize {
+            return Err(Error::TryFrom(
+                bytes,
+                format!("DInt.new: expected buf size {} got {}", DInt::size(), len),
+            ));
+        }
+
+        let bit_offset = ((offset * 10.0) as usize % 10) as u8;
+        if bit_offset != 0 {
+            return Err(Error::TryFrom(
+                bytes,
+                format!(
+                    "DInt.new: float should not have a bit offset got {}",
+                    bit_offset
+                ),
+            ));
+        }
+
+        Ok(DInt {
+            data_block,
+            offset,
+            value: BigEndian::read_i32(bytes.as_mut_slice()),
+        })
+    }
+
+    pub fn size() -> i32 {
+        4
+    }
+
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+
+    pub fn set_value(&mut self, v: i32) {
+        self.value = v
+    }
+}
+
+impl Field for DInt {
+    fn data_block(&self) -> i32 {
+        self.data_block
+    }
+
+    fn offset(&self) -> i32 {
+        self.offset as i32
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = vec![0u8; DInt::size() as usize];
+        BigEndian::write_i32(buf.as_mut_slice(), self.value);
+        return buf;
+    }
+}
+
+
+pub fn to_chars(bytes: Vec<u8>) -> Result<String, FromUtf8Error> {
+    String::from_utf8(bytes)
+}
+
+pub fn siemens_timestamp(encoded_date: i64) -> Option<NaiveDateTime> {
+    let seconds_in_a_day = 86400;
+    let base_date = NaiveDate::from_ymd_opt(1984, 1, 1).unwrap().and_hms_opt(0, 0, 0)?;
+    let dt = base_date.checked_add_signed(Duration::seconds(encoded_date * seconds_in_a_day));
+    return dt;
+  }
+
+
+
 #[test]
 fn test_fields() {
     let float = Float::new(888, 8.0, vec![66, 86, 0, 0]).unwrap();
@@ -357,6 +442,34 @@ fn test_word() {
     match Word::new(888, 8.1, vec![12, 23]) {
         Ok(_) => {
             println!("should return an error at invalid bit offset 1. Words should not have a bit offset");
+            assert!(false)
+        }
+        Err(_) => {}
+    }
+}
+
+#[test]
+fn test_dint() {
+    let val: i32 = 43981;
+    let val2: i32 = -231545;
+    let mut b = vec![0u8; DInt::size() as usize];
+    BigEndian::write_i32(b.as_mut_slice(), val);
+    BigEndian::write_i32(b.as_mut_slice(), val2);
+    let mut field = DInt::new(888, 8.0, b).unwrap();
+
+    field.set_value(val);
+    let result = field.to_bytes();
+    assert_eq!(vec![0, 0, 171, 205], result);
+
+    field.set_value(val2);
+    let result = field.to_bytes();
+    assert_eq!(vec![255, 252, 119, 135], result);
+
+    // test invalid bit offset
+    // dint should not have a bit offset
+    match DInt::new(888, 8.1, vec![12, 23]) {
+        Ok(_) => {
+            println!("should return an error at invalid bit offset 1. dint should not have a bit offset");
             assert!(false)
         }
         Err(_) => {}

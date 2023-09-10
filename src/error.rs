@@ -84,6 +84,7 @@ pub enum Error {
     PduLength(i32),
     TryFrom(Vec<u8>, String),
     InvalidCpuStatus(u8),
+    InvalidBlockType(u8),
     InvalidResponse { reason: String, bytes: Vec<u8> },
 }
 
@@ -108,6 +109,7 @@ impl fmt::Display for Error {
             Error::InvalidResponse { reason, bytes } => {
                 write!(f, "Invalid response {:?} err {}", bytes, reason)
             }
+            Error::InvalidBlockType(block_type) => write!(f, "Invalid block type {}", block_type),
         }
     }
 }

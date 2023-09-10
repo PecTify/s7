@@ -5,8 +5,11 @@
 use super::constant::{self, Area};
 use super::error::{self, Error};
 use super::transport::{self, Transport};
-use crate::constant::CpuStatus;
+use crate::constant::{CpuStatus, BlockLang, SubBlockType};
+use crate::field::{Word, DInt, to_chars, siemens_timestamp};
+use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE};
 use byteorder::{BigEndian, ByteOrder};
+use chrono::NaiveDateTime;
 use std::str;
 
 #[derive(Debug, Clone)]
@@ -16,6 +19,35 @@ pub struct CpuInfo {
     pub as_name: String,
     pub copyright: String,
     pub module_name: String,
+}
+
+pub enum BlockType {
+    OB = 0x38,
+    DB = 0x41,
+    SDB = 0x42,
+    FC = 0x43,
+    SFC = 0x44,
+    FB = 0x45,
+    SFB = 0x46,
+}
+
+#[derive(Debug)]
+pub struct S7BlockInfo {
+    pub block_type: SubBlockType, //Block Type (see SubBlkType)
+    pub block_number: u16, //Block number
+    pub block_lang: BlockLang, //Block Language (see BlockLang)
+    pub block_flags: u8, //Block flags (bitmapped)
+    pub mc7_size: u16, //The real size in bytes
+    pub load_size: i32, //Load memory size
+    pub local_data: u16, //Local data
+    pub sbb_length: u16, //SBB Length
+    pub version: u8, // Version (BCD 00<HI><LO>)
+    pub code_date: NaiveDateTime,
+    pub interface_date: NaiveDateTime,
+    pub author: String,
+    pub family: String,
+    pub header: String,
+
 }
 
 #[derive(Debug, Clone)]
@@ -814,5 +846,57 @@ impl<T: Transport> Client<T> {
             return Err(Error::Response { code: already });
         }
         Ok(())
+    }
+
+    ///get block info
+    pub fn get_ag_block_info(&mut self, block_type: BlockType, mut block_number: u32) -> Result<S7BlockInfo, Error> {
+        
+        let mut s7_bi = BLOCK_INFO_TELEGRAM;
+
+         // Block Type
+        s7_bi[30] = block_type as u8;
+
+        //Blocknumber
+        s7_bi[31] = ((block_number / 10000) + 0x30) as u8;
+        block_number = block_number % 10000;
+        s7_bi[32] = ((block_number / 1000) + 0x30) as u8;
+        block_number = block_number % 1000;
+        s7_bi[33] = ((block_number / 100) + 0x30) as u8;
+        block_number = block_number % 100;
+        s7_bi[34] = ((block_number / 10) + 0x30) as u8;
+        block_number = block_number % 10;
+        s7_bi[35] = ((block_number / 1) + 0x30) as u8;
+        
+
+        let response = self.transport.send(&s7_bi)?;
+        if response.len() < BLOCK_INFO_TELEGRAM_MIN_RESPONSE {
+            return Err(Error::Response {
+                code: error::ISO_INVALID_PDU,
+            });
+        }
+
+        let response_word = Word::new(0, 0.0, response[27..29].to_vec())?.value();
+        if response_word != 0 {
+            return Err(Error::Response {
+                code: error::CLI_INVALID_PLC_ANSWER,
+            });
+        }
+
+        return Ok(S7BlockInfo { 
+            block_type: SubBlockType::from_u8(response[44])?, 
+            block_number: Word::new(0, 0.0, response[45..47].to_vec())?.value(),
+            block_lang: BlockLang::from_u8(response[43])?, 
+            block_flags: response[42], 
+            mc7_size: Word::new(0, 0.0, response[73..75].to_vec())?.value(),
+            load_size: DInt::new(0, 0.0, response[47..51].to_vec())?.value(),
+            local_data: Word::new(0, 0.0, response[71..73].to_vec())?.value(), 
+            sbb_length: Word::new(0, 0.0, response[67..69].to_vec())?.value(), 
+            version: response[99], 
+            code_date: siemens_timestamp(Word::new(0, 0.0, response[59..61].to_vec())?.value() as i64).ok_or(Error::Response { code: error::CLI_INVALID_PLC_ANSWER })?,
+            interface_date: siemens_timestamp(Word::new(0, 0.0, response[65..67].to_vec())?.value() as i64).ok_or(Error::Response { code: error::CLI_INVALID_PLC_ANSWER })?,
+            author: to_chars(response[75..83].to_vec()).unwrap(),
+            family: to_chars(response[83..91].to_vec()).unwrap(),
+            header: to_chars(response[91..99].to_vec()).unwrap(),
+        });
     }
 }
