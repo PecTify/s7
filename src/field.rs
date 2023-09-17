@@ -110,7 +110,7 @@ impl Field for Float {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![0u8; Float::size() as usize];
         BigEndian::write_f32(buf.as_mut_slice(), self.value);
-        return buf;
+        buf
     }
 }
 
@@ -160,7 +160,7 @@ impl Bool {
         if val {
             return b | (1 << bit_pos);
         }
-        return b & !(1 << bit_pos);
+        b & !(1 << bit_pos)
     }
 
     pub fn size() -> i32 {
@@ -260,7 +260,7 @@ impl Field for Word {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![0u8; Word::size() as usize];
         BigEndian::write_u16(buf.as_mut_slice(), self.value);
-        return buf;
+        buf
     }
 }
 
@@ -329,7 +329,7 @@ impl Field for DInt {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![0u8; DInt::size() as usize];
         BigEndian::write_i32(buf.as_mut_slice(), self.value);
-        return buf;
+        buf
     }
 }
 
@@ -341,8 +341,8 @@ pub fn to_chars(bytes: Vec<u8>) -> Result<String, FromUtf8Error> {
 pub fn siemens_timestamp(encoded_date: i64) -> Option<NaiveDateTime> {
     let seconds_in_a_day = 86400;
     let base_date = NaiveDate::from_ymd_opt(1984, 1, 1).unwrap().and_hms_opt(0, 0, 0)?;
-    let dt = base_date.checked_add_signed(Duration::seconds(encoded_date * seconds_in_a_day));
-    return dt;
+    
+    base_date.checked_add_signed(Duration::seconds(encoded_date * seconds_in_a_day))
   }
 
 

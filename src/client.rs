@@ -111,14 +111,14 @@ impl<T: Transport> Client<T> {
         size: i32,
         buffer: &mut Vec<u8>,
     ) -> Result<(), Error> {
-        return self.read(
+        self.read(
             Area::DataBausteine,
             db_number,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     /// # Examples
@@ -163,14 +163,14 @@ impl<T: Transport> Client<T> {
         size: i32,
         buffer: &mut Vec<u8>,
     ) -> Result<(), Error> {
-        return self.write(
+        self.write(
             Area::DataBausteine,
             db_number,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     /// # Examples
@@ -195,7 +195,7 @@ impl<T: Transport> Client<T> {
     /// cl.mb_read(1, 3, buffer).unwrap();
     /// ```
     pub fn mb_read(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.read(Area::Merker, 0, start, size, constant::WL_BYTE, buffer);
+        self.read(Area::Merker, 0, start, size, constant::WL_BYTE, buffer)
     }
 
     /// # Examples
@@ -220,7 +220,7 @@ impl<T: Transport> Client<T> {
     /// cl.mb_write(1, 3, buffer).unwrap();
     /// ```
     pub fn mb_write(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.write(Area::Merker, 0, start, size, constant::WL_BYTE, buffer);
+        self.write(Area::Merker, 0, start, size, constant::WL_BYTE, buffer)
     }
 
     /// # Examples
@@ -245,14 +245,14 @@ impl<T: Transport> Client<T> {
     /// cl.eb_read(1, 3, buffer).unwrap();
     /// ```
     pub fn eb_read(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.read(
+        self.read(
             Area::ProcessInput,
             0,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     /// # Examples
@@ -277,14 +277,14 @@ impl<T: Transport> Client<T> {
     /// cl.eb_write(1, 3, buffer).unwrap();
     /// ```
     pub fn eb_write(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.write(
+        self.write(
             Area::ProcessInput,
             0,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     /// # Examples
@@ -309,14 +309,14 @@ impl<T: Transport> Client<T> {
     /// cl.ab_read(1, 3, buffer).unwrap();
     /// ```
     pub fn ab_read(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.read(
+        self.read(
             Area::ProcessOutput,
             0,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     /// # Examples
@@ -341,14 +341,14 @@ impl<T: Transport> Client<T> {
     /// cl.ab_write(1, 3, buffer).unwrap();
     /// ```
     pub fn ab_write(&mut self, start: i32, size: i32, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        return self.write(
+        self.write(
             Area::ProcessOutput,
             0,
             start,
             size,
             constant::WL_BYTE,
             buffer,
-        );
+        )
     }
 
     //read generic area, pass result into a buffer
@@ -379,12 +379,10 @@ impl<T: Transport> Client<T> {
 
         if word_len == constant::WL_BIT {
             amount = 1; // Only 1 bit can be transferred at time
-        } else {
-            if word_len != constant::WL_COUNTER && word_len != constant::WL_TIMER {
-                amount = amount * word_size;
-                word_size = 1;
-                word_len = constant::WL_BYTE;
-            }
+        } else if word_len != constant::WL_COUNTER && word_len != constant::WL_TIMER {
+            amount *= word_size;
+            word_size = 1;
+            word_len = constant::WL_BYTE;
         }
 
         let pdu_length = self.transport.pdu_length();
@@ -438,9 +436,9 @@ impl<T: Transport> Client<T> {
 
             // Address into the PLC (only 3 bytes)
             request[30] = (address & 0x0FF) as u8;
-            address = address >> 8;
+            address >>= 8;
             request[29] = (address & 0x0FF) as u8;
-            address = address >> 8;
+            address >>= 8;
             request[28] = (address & 0x0FF) as u8;
 
             let result = self.transport.send(request.as_slice());
@@ -508,12 +506,10 @@ impl<T: Transport> Client<T> {
 
         if word_len == constant::WL_BIT {
             amount = 1; // Only 1 bit can be transferred at time
-        } else {
-            if word_len != constant::WL_COUNTER && word_len != constant::WL_TIMER {
-                amount = amount * word_size;
-                word_size = 1;
-                word_len = constant::WL_BYTE;
-            }
+        } else if word_len != constant::WL_COUNTER && word_len != constant::WL_TIMER {
+            amount *= word_size;
+            word_size = 1;
+            word_len = constant::WL_BYTE;
         }
 
         let mut offset: i32 = 0;
@@ -541,11 +537,9 @@ impl<T: Transport> Client<T> {
             // Set DB Number
             request_data[27] = area as u8;
 
-            match area {
-                Area::DataBausteine => {
-                    BigEndian::write_u16(request_data[25..].as_mut(), db_number as u16)
-                }
-                _ => {}
+            
+            if let Area::DataBausteine = area {
+                BigEndian::write_u16(request_data[25..].as_mut(), db_number as u16)
             }
             // Adjusts start and word length
             let mut address = match word_len {
@@ -564,9 +558,9 @@ impl<T: Transport> Client<T> {
             BigEndian::write_u16(request_data[23..].as_mut(), num_elements as u16);
             // address into the PLC
             request_data[30] = (address & 0x0FF) as u8;
-            address = address >> 8;
+            address >>= 8;
             request_data[29] = (address & 0x0FF) as u8;
-            address = address >> 8;
+            address >>= 8;
             request_data[28] = (address & 0x0FF) as u8;
 
             // Transport Size
@@ -878,14 +872,14 @@ impl<T: Transport> Client<T> {
 
         //Blocknumber
         s7_bi[31] = ((block_number / 10000) + 0x30) as u8;
-        block_number = block_number % 10000;
+        block_number %= 10000;
         s7_bi[32] = ((block_number / 1000) + 0x30) as u8;
-        block_number = block_number % 1000;
+        block_number %= 1000;
         s7_bi[33] = ((block_number / 100) + 0x30) as u8;
-        block_number = block_number % 100;
+        block_number %= 100;
         s7_bi[34] = ((block_number / 10) + 0x30) as u8;
-        block_number = block_number % 10;
-        s7_bi[35] = ((block_number / 1) + 0x30) as u8;
+        block_number %= 10;
+        s7_bi[35] = (block_number + 0x30) as u8;
         
 
         let response = self.transport.send(&s7_bi)?;
@@ -901,7 +895,7 @@ impl<T: Transport> Client<T> {
             return Err(Error::CPU { code: response_error as i32 });
         }
 
-        return Ok(S7BlockInfo { 
+        Ok(S7BlockInfo { 
             block_type: SubBlockType::from_u8(response[44])?, 
             block_number: Word::new(0, 0.0, response[45..47].to_vec())?.value(),
             block_lang: BlockLang::from_u8(response[43])?, 
@@ -916,7 +910,7 @@ impl<T: Transport> Client<T> {
             author: to_chars(response[75..83].to_vec()).unwrap(),
             family: to_chars(response[83..91].to_vec()).unwrap(),
             header: to_chars(response[91..99].to_vec()).unwrap(),
-        });
+        })
     }
 
 

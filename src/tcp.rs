@@ -60,7 +60,7 @@ impl Options {
             connection_timeout: None,
             read_timeout: Duration::new(0, 0),
             write_timeout: Duration::new(0, 0),
-            address: format!("{}:{}", address.to_string(), ISO_TCP.to_string()), //ip:102,
+            address: format!("{}:{}", address, ISO_TCP), //ip:102,
             conn_type,
             rack,
             slot,
@@ -101,11 +101,10 @@ impl Transport {
     }
 
     fn set_tsap(&mut self) {
-        let mut remote_tsap = ((self.connection_type() as u16) << 8) as u16
+        let remote_tsap = ((self.connection_type() as u16) << 8)
             + (self.options.rack * 0x20)
             + self.options.slot;
-        let local_tsap: u16 = 0x0100 & 0x0000FFFF;
-        remote_tsap = remote_tsap & 0x0000FFFF;
+        let local_tsap: u16 = 0x0100;
 
         self.options.local_tsap = local_tsap;
         self.options.local_tsap_high = (local_tsap >> 8) as u8;
@@ -113,7 +112,7 @@ impl Transport {
 
         self.options.remote_tsap = remote_tsap;
         self.options.remote_tsap_high = (remote_tsap >> 8) as u8;
-        self.options.remote_tsap_low = (remote_tsap as u8) & 0x00FF;
+        self.options.remote_tsap_low = remote_tsap as u8;
     }
 
     fn iso_connect(&mut self) -> Result<(), Error> {
@@ -190,7 +189,7 @@ impl PackTrait for Transport {
             if length_n == ISO_HEADER_SIZE {
                 stream.read_exact(&mut data[4..7])?;
             } else {
-                if length_n > PDU_SIZE_REQUESTED + ISO_HEADER_SIZE || length_n < MIN_PDU_SIZE {
+                if !(MIN_PDU_SIZE..=PDU_SIZE_REQUESTED + ISO_HEADER_SIZE).contains(&length_n) {
                     return Err(Error::PduLength(length_n));
                 }
                 break;

@@ -184,7 +184,8 @@ pub(crate) const PDU_STOP: u8 = 0x29; // CPU stop
 pub(crate) const PDU_ALREADY_STARTED: u8 = 0x02; // CPU already in run mode
 pub(crate) const PDU_ALREADY_STOPPED: u8 = 0x07; // CPU already in stop mode
 
-pub(crate) struct SZLHeader {
+
+pub struct SZLHeader {
     pub length_header: u16,
     pub number_of_data_record: u16,
 }
