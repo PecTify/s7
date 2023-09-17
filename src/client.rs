@@ -848,7 +848,27 @@ impl<T: Transport> Client<T> {
         Ok(())
     }
 
-    ///get block info
+     /// # Examples
+    ///
+    /// ```no_run
+    /// use std::net::{Ipv4Addr, IpAddr};
+    /// use s7::{client, tcp, transport, client::BlockType};
+    /// use std::time::Duration;
+    ///
+    /// let addr = Ipv4Addr::new(127, 0, 0, 1);
+    /// let mut opts = tcp::Options::new(IpAddr::from(addr), 5, 5, transport::Connection::PG);
+    ///
+    /// opts.read_timeout = Duration::from_secs(2);
+    /// opts.write_timeout = Duration::from_secs(2);
+    ///
+    ///
+    /// let t = tcp::Transport::connect(opts).unwrap();
+    /// let mut cl = client::Client::new(t).unwrap();
+    ///
+    /// let result = cl.get_ag_block_info(BlockType::DB, 888).unwrap();
+    /// 
+    /// println!("{:#?}", result);
+    /// ```
     pub fn get_ag_block_info(&mut self, block_type: BlockType, mut block_number: u32) -> Result<S7BlockInfo, Error> {
         
         let mut s7_bi = BLOCK_INFO_TELEGRAM;
@@ -875,11 +895,10 @@ impl<T: Transport> Client<T> {
             });
         }
 
-        let response_word = Word::new(0, 0.0, response[27..29].to_vec())?.value();
-        if response_word != 0 {
-            return Err(Error::Response {
-                code: error::CLI_INVALID_PLC_ANSWER,
-            });
+        //Error code |  0 = no error
+        let response_error = Word::new(0, 0.0, response[27..29].to_vec())?.value();
+        if response_error != 0 {
+            return Err(Error::CPU { code: response_error as i32 });
         }
 
         return Ok(S7BlockInfo { 
@@ -899,4 +918,40 @@ impl<T: Transport> Client<T> {
             header: to_chars(response[91..99].to_vec()).unwrap(),
         });
     }
+
+
+     /// # Examples
+    ///
+    /// ```no_run
+    /// use std::net::{Ipv4Addr, IpAddr};
+    /// use s7::{client, tcp, transport};
+    /// use std::time::Duration;
+    ///
+    /// let addr = Ipv4Addr::new(127, 0, 0, 1);
+    /// let mut opts = tcp::Options::new(IpAddr::from(addr), 5, 5, transport::Connection::PG);
+    ///
+    /// opts.read_timeout = Duration::from_secs(2);
+    /// opts.write_timeout = Duration::from_secs(2);
+    ///
+    ///
+    /// let t = tcp::Transport::connect(opts).unwrap();
+    /// let mut cl = client::Client::new(t).unwrap();
+    ///
+    /// let buffer = &mut vec![0u8; 255];
+    ///
+    /// cl.read_full_db(888, buffer); //reads the complete DB888 and stores the result in buffer
+    /// 
+    /// ```
+    pub fn read_full_db(&mut self, db_number: u32, buffer: &mut Vec<u8>) -> Result<(), Error> {
+        let block_info = self.get_ag_block_info(BlockType::DB, db_number)?;
+        let db_size = block_info.mc7_size;
+        if db_size as usize > buffer.len() {
+            return Err(Error::Response {
+                code: error::CLI_BUFFER_TOO_SMALL,
+            });
+        }
+        self.ag_read(db_number as i32, 0, db_size as i32, buffer)?;
+        Ok(())
+    }
+
 }

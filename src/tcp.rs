@@ -174,21 +174,21 @@ impl PackTrait for Transport {
             Ok(s) => s,
             Err(_) => return Err(Error::Lock),
         };
-        stream.write(request)?;
+        stream.write_all(request)?;
 
         let mut data = vec![0u8; MAX_LENGTH];
         let mut length;
 
         loop {
             // Get TPKT (4 bytes)
-            stream.read(&mut data[..4])?;
+            stream.read_exact(&mut data[..4])?;
 
             // Read length, ignore transaction & protocol id (4 bytes)
             length = BigEndian::read_u16(&data[2..]);
             let length_n = length as i32;
 
             if length_n == ISO_HEADER_SIZE {
-                stream.read(&mut data[4..7])?;
+                stream.read_exact(&mut data[4..7])?;
             } else {
                 if length_n > PDU_SIZE_REQUESTED + ISO_HEADER_SIZE || length_n < MIN_PDU_SIZE {
                     return Err(Error::PduLength(length_n));
@@ -198,11 +198,11 @@ impl PackTrait for Transport {
         }
 
         // Skip remaining 3 COTP bytes
-        stream.read(&mut data[4..7])?;
+        stream.read_exact(&mut data[4..7])?;
         self.options.last_pdu_type = data[5]; // Stores PDU Type, we need it for later
 
         // Receives the S7 Payload
-        stream.read(&mut data[7..length as usize])?;
+        stream.read_exact(&mut data[7..length as usize])?;
         Ok(data[0..length as usize].to_vec())
     }
 
