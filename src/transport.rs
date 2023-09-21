@@ -170,11 +170,24 @@ pub(crate) const BLOCK_INFO_TELEGRAM: [u8; 37] = [
 	0x41
 ];
 
+pub(crate) const BLOCK_LIST_TELEGRAM: [u8; 29] = [
+    0x03, 0x00, 0x00, 0x1d,
+    0x02, 0xf0, 0x80, 0x32,
+    0x07, 0x00, 0x00, 0x18,
+    0x00, 0x00, 0x08, 0x00,
+    0x04, 0x00, 0x01, 0x12,
+    0x04, 0x11, 0x43, 0x01,
+    0x00, 0x0a, 0x00, 0x00,
+    0x00
+];
+
 pub(crate) const PLC_STATUS_MIN_RESPONSE: usize = 45;
 
 pub(crate) const TELEGRAM_MIN_RESPONSE: usize = 19;
 
 pub(crate) const BLOCK_INFO_TELEGRAM_MIN_RESPONSE: usize = 33;
+
+pub(crate) const BLOCK_LIST_TELEGRAM_MIN_RESPONSE: usize = 61;
 
 pub(crate) const SZL_MIN_RESPONSE: usize = 205;
 

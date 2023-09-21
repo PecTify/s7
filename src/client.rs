@@ -7,7 +7,7 @@ use super::error::{self, Error};
 use super::transport::{self, Transport};
 use crate::constant::{CpuStatus, BlockLang, SubBlockType};
 use crate::field::{Word, DInt, to_chars, siemens_timestamp};
-use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE};
+use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::NaiveDateTime;
 use std::str;
@@ -19,6 +19,17 @@ pub struct CpuInfo {
     pub as_name: String,
     pub copyright: String,
     pub module_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockList {
+    pub ob_block_count: u16,
+    pub fb_block_count: u16,
+    pub fc_block_count: u16,
+    pub db_block_count: u16,
+    pub sdb_block_count: u16,
+    pub sfc_block_count: u16,
+    pub sfb_block_count: u16,
 }
 
 pub enum BlockType {
@@ -911,6 +922,39 @@ impl<T: Transport> Client<T> {
             family: to_chars(response[83..91].to_vec()).unwrap(),
             header: to_chars(response[91..99].to_vec()).unwrap(),
         })
+    }
+
+    pub fn get_ag_block_list(&mut self) -> Result<BlockList, Error> {
+        
+        let s7_bl = BLOCK_LIST_TELEGRAM;
+
+        let response = self.transport.send(&s7_bl)?;
+        if response.len() < BLOCK_LIST_TELEGRAM_MIN_RESPONSE {
+            return Err(Error::Response {
+                code: error::ISO_INVALID_PDU,
+            });
+        }
+
+        //0xff = success
+        if response[29] != 0xff {
+            return Err(Error::CPU { code: response[29] as i32 });
+        }
+
+        //Error code |  0 = no error
+        let response_error = Word::new(0, 0.0, response[27..29].to_vec())?.value();
+        if response_error != 0 {
+            return Err(Error::CPU { code: response_error as i32 });
+        }
+
+        Ok(BlockList {
+             ob_block_count:  Word::new(0, 0.0, response[35..37].to_vec())?.value(), 
+             fb_block_count: Word::new(0, 0.0, response[39..41].to_vec())?.value(), 
+             fc_block_count: Word::new(0, 0.0, response[43..45].to_vec())?.value(), 
+             db_block_count: Word::new(0, 0.0, response[47..49].to_vec())?.value(), 
+             sdb_block_count: Word::new(0, 0.0, response[51..53].to_vec())?.value(), 
+             sfc_block_count: Word::new(0, 0.0, response[55..57].to_vec())?.value(), 
+             sfb_block_count: Word::new(0, 0.0, response[59..61].to_vec())?.value(), 
+            })
     }
 
 
