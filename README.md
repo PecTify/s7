@@ -14,7 +14,7 @@ use std::time::Duration;
 
 fn main() {
     let addr = Ipv4Addr::new(127, 0, 0, 1);
-    let mut opts = tcp::Options::new(IpAddr::from(addr), 5, 5, Connection::PG);
+    let mut opts = tcp::Options::new(IpAddr::from(addr),0, 5, 5, Connection::PG); //0 = default ISO_TPC port 102
 
     opts.read_timeout = Duration::from_secs(2);
     opts.write_timeout = Duration::from_secs(2);
