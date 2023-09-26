@@ -60,6 +60,7 @@ impl Options {
             0 => ISO_TCP,
             _ => port
         };
+
         Options {
             connection_timeout: None,
             read_timeout: Duration::new(0, 0),
