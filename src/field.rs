@@ -177,7 +177,7 @@ impl Field for Double {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![0u8; Double::size() as usize];
         BigEndian::write_f64(buf.as_mut_slice(), self.value);
-        return buf;
+        buf
     }
 }
 
@@ -264,7 +264,7 @@ impl Field for Bool {
     }
 }
 
-/// PLC word field
+/// PLC Word field 16 Bit W#16#0000 to W#16#FFFF
 #[derive(Debug)]
 pub struct Word {
     data_block: i32,
@@ -332,8 +332,75 @@ impl Field for Word {
     }
 }
 
+/// PLC Int field 16 Bit -32768 to +32767
+#[derive(Debug)]
+pub struct Int {
+    data_block: i32,
+    /// offset example 8.1
+    /// left side is index within the block
+    /// right side is the bit position only used for bool, zero for all other types
+    offset: f32,
+    value: i16, //(S7 Int) -32768..32767
+}
 
-/// PLC dint field
+impl Int {
+    pub fn new(data_block: i32, offset: f32, mut bytes: Vec<u8>) -> Result<Int, Error> {
+        let len = bytes.len();
+        if bytes.len() != Int::size() as usize {
+            return Err(Error::TryFrom(
+                bytes,
+                format!("Int.new: expected buf size {} got {}", Int::size(), len),
+            ));
+        }
+
+        let bit_offset = ((offset * 10.0) as usize % 10) as u8;
+        if bit_offset != 0 {
+            return Err(Error::TryFrom(
+                bytes,
+                format!(
+                    "Int.new: int should not have a bit offset got {}",
+                    bit_offset
+                ),
+            ));
+        }
+
+        Ok(Int {
+            data_block,
+            offset,
+            value: BigEndian::read_i16(bytes.as_mut_slice()),
+        })
+    }
+
+    pub fn size() -> i16 {
+        2
+    }
+
+    pub fn value(&self) -> i16 {
+        self.value
+    }
+
+    pub fn set_value(&mut self, v: i16) {
+        self.value = v
+    }
+}
+
+impl Field for Int {
+    fn data_block(&self) -> i32 {
+        self.data_block
+    }
+
+    fn offset(&self) -> i32 {
+        self.offset as i32
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = vec![0u8; Int::size() as usize];
+        BigEndian::write_i16(buf.as_mut_slice(), self.value);
+        buf
+    }
+}
+
+/// PLC DInt field 32 Bit -2147483648 to +2147483647
 #[derive(Debug)]
 pub struct DInt {
     data_block: i32,
@@ -359,7 +426,7 @@ impl DInt {
             return Err(Error::TryFrom(
                 bytes,
                 format!(
-                    "DInt.new: float should not have a bit offset got {}",
+                    "DInt.new: dint should not have a bit offset got {}",
                     bit_offset
                 ),
             ));
