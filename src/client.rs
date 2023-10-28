@@ -5,12 +5,23 @@
 use super::constant::{self, Area};
 use super::error::{self, Error};
 use super::transport::{self, Transport};
-use crate::constant::{CpuStatus, BlockLang, SubBlockType};
+use crate::constant::{CpuStatus, BlockLang, SubBlockType, TS_RES_OCTET, TS_RES_REAL, TS_RES_BIT};
 use crate::field::{Word, DInt, to_chars, siemens_timestamp};
-use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE};
+use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE, MAX_VARS_MULTI_READ_WRITE, MRD_HEADER, MRD_ITEM};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::NaiveDateTime;
 use std::str;
+
+#[derive(Debug)]
+pub struct S7DataItem {
+    pub area: u8,
+    pub word_len: u8,
+    pub db_num: u16,
+    pub start: u16,
+    pub size: u16,
+    pub buffer: Vec<u8>,
+    pub err: Result<(), Error>,
+}
 
 #[derive(Debug, Clone)]
 pub struct CpuInfo {
@@ -362,6 +373,158 @@ impl<T: Transport> Client<T> {
         )
     }
 
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::net::{Ipv4Addr, IpAddr};
+    /// use s7::{client, tcp, transport};
+    /// use std::time::Duration;
+    /// use s7::constant;
+    /// use s7::constant::Area;
+    /// use s7::client::S7DataItem;
+    /// use s7::field::Word;
+    /// use s7::field::Bool;
+    ///
+    /// let addr = Ipv4Addr::new(127, 0, 0, 1);
+    /// let mut opts = tcp::Options::new(IpAddr::from(addr), 0, 5, 5, transport::Connection::PG);
+    ///
+    /// opts.read_timeout = Duration::from_secs(2);
+    /// opts.write_timeout = Duration::from_secs(2);
+    ///
+    ///
+    /// let t = tcp::Transport::connect(opts).unwrap();
+    /// let mut cl = client::Client::new(t).unwrap();
+    ///
+    /// let mut items: Vec<S7DataItem> = vec![
+    /// S7DataItem{area: Area::DataBausteine as u8,word_len:2,db_num:88,start:0,size:8,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
+    /// S7DataItem{area: Area::ProcessInput as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
+    /// S7DataItem{area: Area:: ProcessOutput as u8,word_len:constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
+    /// S7DataItem{area: Area::Merker as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:3,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
+    /// S7DataItem{area:Area::Counter as u8,word_len: constant::WL_COUNTER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: Ok(()) },
+    /// S7DataItem{area:Area::Timer as u8,word_len: constant::WL_TIMER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: Ok(()) },
+    /// ];
+    ///     
+    /// 
+    ///
+    /// cl.read_multi_vars(&mut items).unwrap();
+    /// for item in items {
+    ///     println!("{:08b}", item.buffer[0]);
+    /// }
+    /// ```
+    pub fn read_multi_vars(&mut self, items: &mut Vec<S7DataItem>) -> Result<(), Error>{
+        let item_len = items.len();
+
+        if item_len > MAX_VARS_MULTI_READ_WRITE {
+            return Err(Error::InvalidInput { input: "Too many items".to_string() });
+        }
+
+        let mut s7_item = vec![0u8; 12];
+        let mut s7_item_read;
+        let mut item_size: u16 = 0;
+
+        //Fill Header
+        let mut request = MRD_HEADER.to_vec();
+        let header_bytes = ((item_len * s7_item.len() + 2) as u16).to_be_bytes();
+        request[13] = header_bytes[0];
+        request[14] = header_bytes[1];
+        request[18] = item_len as u8;
+
+        //Fill the Items
+        let mut offset: u16 = 19;
+
+        for (_c, item) in items.iter().enumerate() {
+            s7_item = MRD_ITEM.to_vec();
+            s7_item[3] = item.word_len;
+    
+            //Size
+            let size_bytes = (item.size).to_be_bytes();
+            s7_item[4] = size_bytes[0];
+            s7_item[5] = size_bytes[1];
+    
+            //DB number
+            let db_bytes = (item.db_num).to_be_bytes();
+            s7_item[6] = db_bytes[0];
+            s7_item[7] = db_bytes[1];
+    
+            //Area
+            s7_item[8] = item.area;
+    
+             // Adjusts Start and Word length
+             let mut address = match item.word_len as i32 {
+                constant::WL_BIT | constant::WL_COUNTER | constant::WL_TIMER => {
+                    s7_item[3] = item.word_len;
+                    item.start
+                }
+                _ => item.start << 3,
+            };
+    
+            // Address into the PLC
+            s7_item[11] = (address & 0x0FF) as u8;
+            address >>= 8;
+            s7_item[10] = (address & 0x0FF) as u8;
+            address >>= 8;
+            s7_item[9] = (address & 0x0FF) as u8;
+    
+            
+            request.append(&mut s7_item);
+            item_size += MRD_ITEM.len() as u16;
+        }
+
+        //Request Size
+        offset += item_size;
+        let request_size = (offset).to_be_bytes();
+        request[2] = request_size[0];
+        request[3] = request_size[1];
+
+        let response = self.transport.send(request.as_slice())?;
+
+        //PDU too small?
+        if response.len() < 22 { 
+            return Err(Error::InvalidResponse { reason: "PDU too small".to_string(), bytes: response } );
+        }
+
+        let error_code = Word::new(0, 0.0, response[17..19].to_vec())?.value();
+        
+        if error_code != 0 {
+            return Err(Error::CPU { code: error_code as i32 });
+        }
+
+        //Check item count
+        let items_read = response[20];
+        if items_read != item_len as u8 || items_read > MAX_VARS_MULTI_READ_WRITE as u8 {
+            return Err(Error::InvalidResponse { reason: "Recived Items to large".to_string(), bytes: response })
+        }
+
+        let mut offset = 21;
+
+        for (_c, item) in items.iter_mut().enumerate().take(items_read as usize) {
+            //Get Item
+            s7_item_read = response[offset..response.len()].to_vec();
+
+            //Check Error Byte  0xff = success
+            if s7_item_read[0] == 0xff {
+                let mut item_size = Word::new(0, 0.0, s7_item_read[2..4].to_vec())?.value();
+
+                if s7_item_read[1] != TS_RES_OCTET && s7_item_read[1] != TS_RES_REAL && s7_item_read[1] != TS_RES_BIT {
+                    item_size >>= 3;
+                }
+
+                item.buffer = s7_item_read[4..4 + item_size as usize].to_vec();
+
+                    if item_size % 2 != 0 {
+                        item_size += 1;
+                    }
+
+                    offset = offset + 4 + item_size as usize;
+            } else {
+                item.err = Err(Error::CPU { code: s7_item_read[0] as i32 });
+                //Skip Item (headersize)
+                offset += 4;
+            }
+        }
+        Ok(())
+    }
+
     //read generic area, pass result into a buffer
     fn read(
         &mut self,
@@ -576,11 +739,11 @@ impl<T: Transport> Client<T> {
 
             // Transport Size
             match word_len {
-                constant::WL_BIT => request_data[32] = constant::TS_RES_BIT as u8,
+                constant::WL_BIT => request_data[32] = constant::TS_RES_BIT,
                 constant::WL_COUNTER | constant::WL_TIMER => {
-                    request_data[32] = constant::TS_RES_OCTET as u8
+                    request_data[32] = constant::TS_RES_OCTET
                 }
-                _ => request_data[32] = constant::TS_RES_BYTE as u8, // byte/word/dword etc.
+                _ => request_data[32] = constant::TS_RES_BYTE, // byte/word/dword etc.
             }
             // length
             BigEndian::write_u16(request_data[33..].as_mut(), length as u16);

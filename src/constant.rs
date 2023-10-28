@@ -3,7 +3,7 @@ use crate::error::Error;
 // Area ID
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
-pub(crate) enum Area {
+pub enum Area {
     ProcessInput = 0x81,
     ProcessOutput = 0x82,
     /// Merkers are address registers within the CPU.
@@ -31,7 +31,7 @@ pub const WL_COUNTER: i32 = 0x1C; //Counter (16 bit)
 pub const WL_TIMER: i32 = 0x1D; //Timer (16 bit)
 
 //dataSize to number of byte accordingly
-pub fn data_size_byte(word_length: i32) -> i32 {
+pub(crate) fn data_size_byte(word_length: i32) -> i32 {
     match word_length {
         WL_BIT | WL_BYTE | WL_CHAR => 1,
         WL_WORD | WL_INT | WL_COUNTER | WL_TIMER => 2,
@@ -65,25 +65,25 @@ impl CpuStatus {
 
 #[derive(Debug, Clone)]
 pub enum SubBlockType {
-    OB = 0x08,
-    DB = 0x0A,
-    SDB = 0x0B,
-    FC = 0x0C,
-    SFC = 0x0D,
-    FB = 0x0E,
-    SFB = 0x0F,
+    Ob = 0x08,
+    Db = 0x0A,
+    Sdb = 0x0B,
+    Fc = 0x0C,
+    Sfc = 0x0D,
+    Fb = 0x0E,
+    Sfb = 0x0F,
 }
 
 impl SubBlockType {
     pub(crate) fn from_u8(value: u8) -> Result<Self, Error> {
         match value {
-            0x08 => Ok(SubBlockType::OB),
-            0x0A => Ok(SubBlockType::DB),
-            0x0B => Ok(SubBlockType::SDB),
-            0x0C => Ok(SubBlockType::FC),
-            0x0D => Ok(SubBlockType::SFC),
-            0x0E => Ok(SubBlockType::FB),
-            0x0F => Ok(SubBlockType::SFB),
+            0x08 => Ok(SubBlockType::Ob),
+            0x0A => Ok(SubBlockType::Db),
+            0x0B => Ok(SubBlockType::Sdb),
+            0x0C => Ok(SubBlockType::Fc),
+            0x0D => Ok(SubBlockType::Sfc),
+            0x0E => Ok(SubBlockType::Fb),
+            0x0F => Ok(SubBlockType::Sfb),
             _ => Err(Error::InvalidBlockType(value)),
         }
     }
@@ -91,38 +91,36 @@ impl SubBlockType {
 
 #[derive(Debug, Clone)]
 pub enum BlockLang {
-    AWL = 0x01,
-    KOP = 0x02,
-    FUP = 0x03,
-    SCL = 0x04,
-    DB = 0x05,
-    GRAPH = 0x06,
+    Awl = 0x01,
+    Kop = 0x02,
+    Fup = 0x03,
+    Scl = 0x04,
+    Db = 0x05,
+    Graph = 0x06,
 }
 
 impl BlockLang {
     pub(crate) fn from_u8(value: u8) -> Result<Self, Error> {
         match value {
-            0x01 => Ok(BlockLang::AWL),
-            0x02 => Ok(BlockLang::KOP),
-            0x03 => Ok(BlockLang::FUP),
-            0x04 => Ok(BlockLang::SCL),
-            0x05 => Ok(BlockLang::DB),
-            0x06 => Ok(BlockLang::GRAPH),
+            0x01 => Ok(BlockLang::Awl),
+            0x02 => Ok(BlockLang::Kop),
+            0x03 => Ok(BlockLang::Fup),
+            0x04 => Ok(BlockLang::Scl),
+            0x05 => Ok(BlockLang::Db),
+            0x06 => Ok(BlockLang::Graph),
             _ => Err(Error::InvalidCpuStatus(value)),
         }
     }
 }
 
 //size header
-pub const SIZE_HEADER_READ: i32 = 31; // Header Size when Reading
-pub const SIZE_HEADER_WRITE: i32 = 35; // Header Size when Writing
+pub(crate) const SIZE_HEADER_READ: i32 = 31; // Header Size when Reading
+pub(crate) const SIZE_HEADER_WRITE: i32 = 35; // Header Size when Writing
 
 // Result transport size
-pub const TS_RES_BIT: i32 = 3;
-pub const TS_RES_BYTE: i32 = 4;
+pub(crate) const TS_RES_BIT: u8 = 3;
+pub(crate) const TS_RES_BYTE: u8 = 4;
 #[allow(dead_code)]
-pub const TS_RES_INT: i32 = 5;
-//todo implement read write multi
-#[allow(dead_code)]
-pub const TS_RES_REAL: i32 = 7;
-pub const TS_RES_OCTET: i32 = 9;
+pub(crate) const TS_RES_INT: u8 = 5;
+pub(crate) const TS_RES_REAL: u8 = 7;
+pub(crate) const TS_RES_OCTET: u8 = 9;

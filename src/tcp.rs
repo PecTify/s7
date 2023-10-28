@@ -65,7 +65,7 @@ impl Options {
             connection_timeout: None,
             read_timeout: Duration::new(0, 0),
             write_timeout: Duration::new(0, 0),
-            address: format!("{}:{}", address.to_string(), port.to_string()), //ip:102,
+            address: format!("{}:{}", address, port), //ip:102,
             conn_type,
             rack,
             slot,

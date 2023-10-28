@@ -3,7 +3,7 @@
 // of the BSD license. See the LICENSE file for details.
 
 pub mod client;
-mod constant;
+pub mod constant;
 pub mod error;
 pub mod field;
 pub mod tcp;

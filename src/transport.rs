@@ -181,6 +181,64 @@ pub(crate) const BLOCK_LIST_TELEGRAM: [u8; 29] = [
     0x00
 ];
 
+// S7 Variable MultiRead Header
+pub(crate) const MRD_HEADER: [u8; 19] = [
+    0x03,0x00,
+    0x00,0x1f,       // Telegram Length 
+    0x02,0xf0, 0x80, // COTP (see above for info)
+    0x32,            // S7 Protocol ID 
+    0x01,            // Job Type
+    0x00,0x00,       // Redundancy identification
+    0x00,0x01,       // PDU Reference
+    0x00,0x0e,       // Parameters Length
+    0x00,0x00,       // Data Length = Size(bytes) + 4      
+    0x04,            // Function 4 Read Var, 5 Write Var  
+    0x01             // Items count (idx 18)
+];
+
+// S7 Variable MultiRead Item
+pub(crate) const MRD_ITEM: [u8; 12] = [
+    0x12,            // Var spec.
+    0x0a,            // Length of remaining bytes
+    0x10,            // Syntax ID 
+    0x02,            // Transport Size idx=3                   
+    0x00,0x00,       // Num Elements                          
+    0x00,0x00,       // DB Number (if any, else 0)            
+    0x84,            // Area Type                            
+    0x00,0x00,0x00   // Area Offset   
+];
+
+// S7 Variable MultiWrite Header
+//Todo implement multi write
+#[allow(dead_code)]
+pub(crate) const MWR_HEADER: [u8; 19] = [
+    0x03,0x00,
+    0x00,0x1f,       // Telegram Length 
+    0x02,0xf0, 0x80, // COTP (see above for info)
+    0x32,            // S7 Protocol ID 
+    0x01,            // Job Type
+    0x00,0x00,       // Redundancy identification
+    0x05,0x00,       // PDU Reference
+    0x00,0x0e,       // Parameters Length (idx 13)
+    0x00,0x00,       // Data Length = Size(bytes) + 4 (idx 15)     
+    0x05,            // Function 5 Write Var  
+    0x01    
+];
+
+// S7 Variable MultiWrite Item (Param)
+//Todo implement multi write
+#[allow(dead_code)]
+pub(crate) const MWR_PARAM: [u8; 12] = [
+    0x12,            // Var spec.
+    0x0a,            // Length of remaining bytes
+    0x10,            // Syntax ID 
+    0x02,  // Transport Size idx=3                      
+    0x00,0x00,       // Num Elements                          
+    0x00,0x00,       // DB Number (if any, else 0)            
+    0x84,            // Area Type                            
+    0x00,0x00,0x00,  // Area Offset     
+];
+
 pub(crate) const PLC_STATUS_MIN_RESPONSE: usize = 45;
 
 pub(crate) const TELEGRAM_MIN_RESPONSE: usize = 19;
@@ -196,6 +254,8 @@ pub(crate) const PDU_STOP: u8 = 0x29; // CPU stop
 
 pub(crate) const PDU_ALREADY_STARTED: u8 = 0x02; // CPU already in run mode
 pub(crate) const PDU_ALREADY_STOPPED: u8 = 0x07; // CPU already in stop mode
+
+pub(crate) const MAX_VARS_MULTI_READ_WRITE: usize = 20;
 
 
 pub struct SZLHeader {
