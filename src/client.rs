@@ -396,12 +396,12 @@ impl<T: Transport> Client<T> {
     /// let mut cl = client::Client::new(t).unwrap();
     ///
     /// let mut items: Vec<S7DataItem> = vec![
-    /// S7DataItem{area: Area::DataBausteine as u8,word_len:2,db_num:88,start:0,size:8,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
-    /// S7DataItem{area: Area::ProcessInput as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
-    /// S7DataItem{area: Area:: ProcessOutput as u8,word_len:constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
-    /// S7DataItem{area: Area::Merker as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:3,size:1,buffer:vec![0u8; Bool::size() as usize], err: Ok(()) },
-    /// S7DataItem{area:Area::Counter as u8,word_len: constant::WL_COUNTER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: Ok(()) },
-    /// S7DataItem{area:Area::Timer as u8,word_len: constant::WL_TIMER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: Ok(()) },
+    /// S7DataItem{area: Area::DataBausteine as u8,word_len:2,db_num:88,start:0,size:8,buffer:vec![0u8; Bool::size() as usize], err: None },
+    /// S7DataItem{area: Area::ProcessInput as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: None },
+    /// S7DataItem{area: Area:: ProcessOutput as u8,word_len:constant::WL_BYTE as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Bool::size() as usize], err: None },
+    /// S7DataItem{area: Area::Merker as u8,word_len: constant::WL_BYTE as u8,db_num:0,start:3,size:1,buffer:vec![0u8; Bool::size() as usize], err: None },
+    /// S7DataItem{area:Area::Counter as u8,word_len: constant::WL_COUNTER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: None },
+    /// S7DataItem{area:Area::Timer as u8,word_len: constant::WL_TIMER as u8,db_num:0,start:0,size:1,buffer:vec![0u8; Word::size() as usize], err: None },
     /// ];
     ///     
     /// 
