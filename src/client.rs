@@ -5,14 +5,14 @@
 use super::constant::{self, Area};
 use super::error::{self, Error};
 use super::transport::{self, Transport};
-use crate::constant::{CpuStatus, BlockLang, SubBlockType, TS_RES_OCTET, TS_RES_REAL, TS_RES_BIT};
+use crate::constant::{CpuStatus, BlockLang, SubBlockType, TS_RES_OCTET, TS_RES_REAL, TS_RES_BIT, WL_BIT, WL_COUNTER, WL_TIMER, TS_RES_BYTE};
 use crate::field::{Word, DInt, to_chars, siemens_timestamp};
-use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE, MAX_VARS_MULTI_READ_WRITE, MRD_HEADER, MRD_ITEM};
+use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE, MAX_VARS_MULTI_READ_WRITE, MRD_HEADER, MRD_ITEM, MWR_HEADER, MWR_PARAM};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::NaiveDateTime;
 use std::str;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct S7DataItem {
     pub area: u8,
     pub word_len: u8,
@@ -20,7 +20,7 @@ pub struct S7DataItem {
     pub start: u16,
     pub size: u16,
     pub buffer: Vec<u8>,
-    pub err: Result<(), Error>,
+    pub err: Option<Error>,
 }
 
 #[derive(Debug, Clone)]
@@ -517,11 +517,141 @@ impl<T: Transport> Client<T> {
 
                     offset = offset + 4 + item_size as usize;
             } else {
-                item.err = Err(Error::CPU { code: s7_item_read[0] as i32 });
+                item.err = Some(Error::CPU { code: s7_item_read[0] as i32 });
                 //Skip Item (headersize)
                 offset += 4;
             }
         }
+        Ok(())
+    }
+
+    fn write_word_at(start: usize, source: &[u8; 2], destination: &mut Vec<u8>) {
+        destination[start] = source[0];
+        destination[start+1] = source[1];
+    }
+
+    pub fn write_multi_vars(&mut self, items: &mut Vec<S7DataItem>) -> Result<(), Error>{
+        let item_count = items.len();
+
+        if item_count > MAX_VARS_MULTI_READ_WRITE {
+            return Err(Error::InvalidInput { input: "Too many items".to_string() });
+        }
+
+        //Fill Header
+        let mut request = MWR_HEADER.to_vec();
+
+        let par_length: i16 = item_count as i16 * MRD_HEADER.len() as i16 + 2;
+        Self::write_word_at(13, &par_length.to_be_bytes(), &mut request);
+        request[18] = item_count as u8;
+        
+
+        //Fill Params
+        let mut offset = MWR_HEADER.len();
+        
+        let mut s7_par_item;
+        for item in items.clone() {
+            s7_par_item = MWR_PARAM;
+            s7_par_item[3] = item.word_len;
+            s7_par_item[8] = item.area;
+
+            let size_bytes = (item.size).to_be_bytes();
+            s7_par_item[4] = size_bytes[0];
+            s7_par_item[5] = size_bytes[1];
+
+            let db_num_bytes = (item.db_num).to_be_bytes();
+            s7_par_item[6] = db_num_bytes[0];
+            s7_par_item[7] = db_num_bytes[1];
+
+            //Address into PLC
+            let mut address = item.start;
+            s7_par_item[11] = (address & 0x0FF) as u8;
+            address = address >> 8;
+            s7_par_item[10] = (address & 0x0FF) as u8;
+            address = address >> 8;
+            s7_par_item[9] = (address & 0x0FF) as u8;
+
+            request.append(&mut s7_par_item.to_vec());
+
+            offset += MWR_PARAM.len();
+        }
+
+        //Fills Data
+        // start data section -->
+        let mut data_length = 0;
+        for item in items.clone() {
+            let mut s7_data_item = vec![0; 6]; //20 <--- !TODO
+            
+            s7_data_item[0] = 0x00;
+            match item.word_len as i32 {
+                WL_BIT => s7_data_item[1] = TS_RES_BIT,
+                WL_COUNTER | WL_TIMER => s7_data_item[1] = TS_RES_OCTET,
+                _ => s7_data_item[1] = TS_RES_BYTE,
+            }
+
+            let mut item_data_size;
+            if item.word_len == WL_TIMER as u8 || item.word_len == WL_COUNTER as u8 {
+                item_data_size = item.size * 2;
+            } else {
+                item_data_size = item.size;
+            }
+            
+
+            if s7_data_item[1] !=  TS_RES_OCTET && s7_data_item[1] != TS_RES_BIT {
+                let item_data_size_bytes = (item_data_size * 8).to_be_bytes();
+                s7_data_item[2] = item_data_size_bytes[0];
+                s7_data_item[3] = item_data_size_bytes[1];
+            } else {
+                let item_data_size_bytes = (item_data_size).to_be_bytes();
+                s7_data_item[2] = item_data_size_bytes[0];
+                s7_data_item[3] = item_data_size_bytes[1];
+            }
+
+            for (c, item) in item.buffer.iter().enumerate() {
+                s7_data_item[c+4] = item.clone();
+            }
+
+            if item_data_size % 2 != 0 {
+                s7_data_item[item_data_size as usize + 4 ] = 0x00;
+                item_data_size += 1;
+            } //<-- end datasection
+
+           
+            request.append(&mut s7_data_item);
+            offset = offset + item_data_size as usize + 4;
+            data_length = data_length + item_data_size + 4;
+        }
+        //Check the size
+        let pdu_length = self.transport.pdu_length();
+        if offset > pdu_length as usize {
+            return Err(Error::PduLength(pdu_length));
+        }
+        let offset_bytes = (offset).to_be_bytes();
+        request[2] = offset_bytes[6];
+        request[3] = offset_bytes[7];
+
+        let data_length_bytes = (data_length).to_be_bytes();
+        request[15] = data_length_bytes[0];
+        request[16] = data_length_bytes[1];
+        
+        let response = self.transport.send(request.as_slice())?;
+
+        // Check Global Operation Result
+        let global_operation_result = Word::new(0, 0.0, response[17..19].to_vec())?.value();
+        if global_operation_result != 0  {
+            return Err(Error::CPU { code: global_operation_result as i32 });
+        }
+
+        // Get true ItemCount
+        let items_written = response[20] as usize;
+        if item_count != items_written {
+            return Err(Error::InvalidResponse { reason: "items_written does not match item_count".to_string(), bytes: response })
+        }
+        if items_written > MAX_VARS_MULTI_READ_WRITE {
+            return Err(Error::InvalidResponse { reason: "items_written is larger than MAX_VARS ".to_string(), bytes: response })
+        }
+
+        //todo!()
+
         Ok(())
     }
 

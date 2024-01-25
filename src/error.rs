@@ -71,7 +71,7 @@ const CODE_7_NO_PASSWORD_TO_SET: i32 = 54789;
 const CODE_7_FUN_NOT_AVAILABLE: i32 = 33028;
 const CODE_7_DATA_OVER_PDU: i32 = 34048;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Connect(String),
     Lock,
