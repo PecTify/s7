@@ -7,6 +7,7 @@ use super::error::{self, Error};
 use super::transport::{self, Transport};
 use crate::constant::{CpuStatus, BlockLang, SubBlockType, TS_RES_OCTET, TS_RES_REAL, TS_RES_BIT, WL_BIT, WL_COUNTER, WL_TIMER, TS_RES_BYTE};
 use crate::field::{Word, DInt, to_chars, siemens_timestamp};
+use crate::helper;
 use crate::transport::{BLOCK_INFO_TELEGRAM, BLOCK_INFO_TELEGRAM_MIN_RESPONSE, BLOCK_LIST_TELEGRAM, BLOCK_LIST_TELEGRAM_MIN_RESPONSE, MAX_VARS_MULTI_READ_WRITE, MRD_HEADER, MRD_ITEM, MWR_HEADER, MWR_PARAM};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::NaiveDateTime;
@@ -525,10 +526,6 @@ impl<T: Transport> Client<T> {
         Ok(())
     }
 
-    fn write_word_at(start: usize, source: &[u8; 2], destination: &mut Vec<u8>) {
-        destination[start] = source[0];
-        destination[start+1] = source[1];
-    }
 
     pub fn write_multi_vars(&mut self, items: &mut Vec<S7DataItem>) -> Result<(), Error>{
         let item_count = items.len();
@@ -541,7 +538,7 @@ impl<T: Transport> Client<T> {
         let mut request = MWR_HEADER.to_vec();
 
         let par_length: i16 = item_count as i16 * MRD_HEADER.len() as i16 + 2;
-        Self::write_word_at(13, &par_length.to_be_bytes(), &mut request);
+        helper::write_word_at(13, &par_length.to_be_bytes(), &mut request);
         request[18] = item_count as u8;
         
 
@@ -550,17 +547,15 @@ impl<T: Transport> Client<T> {
         
         let mut s7_par_item;
         for item in items.clone() {
-            s7_par_item = MWR_PARAM;
+            s7_par_item = MWR_PARAM.to_vec();
+
             s7_par_item[3] = item.word_len;
+
             s7_par_item[8] = item.area;
 
-            let size_bytes = (item.size).to_be_bytes();
-            s7_par_item[4] = size_bytes[0];
-            s7_par_item[5] = size_bytes[1];
+            helper::write_word_at(4, &item.size.to_be_bytes(), &mut s7_par_item);
 
-            let db_num_bytes = (item.db_num).to_be_bytes();
-            s7_par_item[6] = db_num_bytes[0];
-            s7_par_item[7] = db_num_bytes[1];
+            helper::write_word_at(6, &item.db_num.to_be_bytes(), &mut s7_par_item);
 
             //Address into PLC
             let mut address = item.start;
@@ -570,7 +565,7 @@ impl<T: Transport> Client<T> {
             address = address >> 8;
             s7_par_item[9] = (address & 0x0FF) as u8;
 
-            request.append(&mut s7_par_item.to_vec());
+            request.append(&mut s7_par_item);
 
             offset += MWR_PARAM.len();
         }
@@ -597,13 +592,9 @@ impl<T: Transport> Client<T> {
             
 
             if s7_data_item[1] !=  TS_RES_OCTET && s7_data_item[1] != TS_RES_BIT {
-                let item_data_size_bytes = (item_data_size * 8).to_be_bytes();
-                s7_data_item[2] = item_data_size_bytes[0];
-                s7_data_item[3] = item_data_size_bytes[1];
+                helper::write_word_at(2, &(item_data_size * 8).to_be_bytes(), &mut s7_data_item);
             } else {
-                let item_data_size_bytes = (item_data_size).to_be_bytes();
-                s7_data_item[2] = item_data_size_bytes[0];
-                s7_data_item[3] = item_data_size_bytes[1];
+                helper::write_word_at(2, &item_data_size.to_be_bytes(), &mut s7_data_item);
             }
 
             for (c, item) in item.buffer.iter().enumerate() {
@@ -625,13 +616,10 @@ impl<T: Transport> Client<T> {
         if offset > pdu_length as usize {
             return Err(Error::PduLength(pdu_length));
         }
-        let offset_bytes = (offset).to_be_bytes();
-        request[2] = offset_bytes[6];
-        request[3] = offset_bytes[7];
 
-        let data_length_bytes = (data_length).to_be_bytes();
-        request[15] = data_length_bytes[0];
-        request[16] = data_length_bytes[1];
+        helper::write_word_at(2, &(offset as u16).to_be_bytes(), &mut request);
+
+        helper::write_word_at(15, &data_length.to_be_bytes(), &mut request);
         
         let response = self.transport.send(request.as_slice())?;
 

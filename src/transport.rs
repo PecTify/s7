@@ -241,7 +241,7 @@ pub(crate) const MWR_PARAM: [u8; 12] = [
 
 pub(crate) const PLC_STATUS_MIN_RESPONSE: usize = 45;
 
-pub(crate) const TELEGRAM_MIN_RESPONSE: usize = 19;
+pub(crate) const TELEGRAM_MIN_RESPONSE: usize = 20;
 
 pub(crate) const BLOCK_INFO_TELEGRAM_MIN_RESPONSE: usize = 33;
 
